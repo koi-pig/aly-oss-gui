@@ -1,0 +1,230 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from urllib.parse import quote, unquote, urlparse
+
+import oss2
+
+from oss_config import OssConfig
+
+
+MAX_LIST_KEYS = 1000
+CONNECT_TIMEOUT_SECONDS = 15
+BYTES_PER_MB = 1024 * 1024
+KEY_SEPARATORS = (".aliyuncs.com/", ".aliyuncs.com")
+
+
+@dataclass(frozen=True)
+class OssObject:
+    key: str
+    size: int
+    last_modified: str
+    storage_class: str
+    url: str
+
+
+@dataclass(frozen=True)
+class BucketOption:
+    name: str
+    endpoint: str
+
+    @property
+    def label(self) -> str:
+        return f"{self.name} -> {self.endpoint}"
+
+
+@dataclass(frozen=True)
+class ObjectPage:
+    objects: list[OssObject]
+    next_marker: str
+    total_count: int
+
+
+@dataclass(frozen=True)
+class UploadOptions:
+    object_key: str
+    use_signed_url: bool
+    expire_days: int
+
+
+class OssService:
+    def __init__(self, config: OssConfig) -> None:
+        self._auth = oss2.Auth(config.access_key_id, config.access_key_secret)
+        self._config = config
+        self._bucket_name = config.bucket
+        self._endpoint = self._normalize_endpoint(config.endpoint)
+        self._bucket_endpoints: dict[str, str] = {config.bucket: self._endpoint}
+        self._bucket = self._build_bucket(config.bucket, self._endpoint)
+
+    @property
+    def bucket_name(self) -> str:
+        return self._bucket_name
+
+    @property
+    def page_size(self) -> int:
+        return self._config.page_size
+
+    def list_buckets(self) -> list[BucketOption]:
+        service = oss2.Service(self._auth, self._config.endpoint)
+        bucket_infos = service.list_buckets().buckets
+        options: list[BucketOption] = []
+        for bucket in bucket_infos:
+            self._bucket_endpoints[bucket.name] = bucket.extranet_endpoint
+            options.append(BucketOption(bucket.name, bucket.extranet_endpoint))
+        return options
+
+    def use_bucket(self, bucket_name: str) -> None:
+        clean_name = bucket_name.strip()
+        if not clean_name:
+            raise ValueError("Bucket 不能为空")
+        endpoint = self._bucket_endpoints.get(clean_name, self._endpoint)
+        self._bucket_name = clean_name
+        self._endpoint = endpoint
+        self._bucket = self._build_bucket(clean_name, endpoint)
+
+    def _build_bucket(self, bucket_name: str, endpoint: str):
+        self._bucket = oss2.Bucket(
+            self._auth,
+            endpoint,
+            bucket_name,
+            connect_timeout=CONNECT_TIMEOUT_SECONDS,
+        )
+        return self._bucket
+
+    def list_objects(self, prefix: str) -> list[OssObject]:
+        page = self.list_objects_page(prefix, "", MAX_LIST_KEYS)
+        return page.objects
+
+    def list_objects_page(self, prefix: str, marker: str, page_size: int) -> ObjectPage:
+        clean_prefix = self.prefix_from_input(prefix)
+        items: list[OssObject] = []
+        result = self._bucket.list_objects(clean_prefix, marker=marker, max_keys=page_size)
+        for obj in result.object_list:
+            items.append(self._to_object(obj))
+        return ObjectPage(items, result.next_marker or "", -1)
+
+    def upload_file(self, local_path: Path, object_key: str, progress_callback=None) -> str:
+        self._require_file(local_path)
+        clean_key = self._normalize_key(object_key)
+        total_size = local_path.stat().st_size
+        self._emit_progress(progress_callback, 0, total_size)
+        if self._should_multipart(total_size):
+            self._upload_resumable(local_path, clean_key, progress_callback)
+        else:
+            self._upload_single(local_path, clean_key, progress_callback)
+        self._emit_progress(progress_callback, total_size, total_size)
+        return self.public_url(clean_key)
+
+    def _upload_single(self, local_path: Path, object_key: str, progress_callback) -> None:
+        self._bucket.put_object_from_file(
+            object_key,
+            str(local_path),
+            progress_callback=progress_callback,
+        )
+
+    def _upload_resumable(self, local_path: Path, object_key: str, progress_callback) -> None:
+        oss2.resumable_upload(
+            self._bucket,
+            object_key,
+            str(local_path),
+            multipart_threshold=self._mb_to_bytes(self._config.multipart_threshold_mb),
+            part_size=self._mb_to_bytes(self._config.multipart_part_size_mb),
+            num_threads=self._config.multipart_threads,
+            progress_callback=progress_callback,
+        )
+
+    def _should_multipart(self, total_size: int) -> bool:
+        return total_size >= self._mb_to_bytes(self._config.multipart_threshold_mb)
+
+    def delete_file(self, object_key: str) -> None:
+        self._bucket.delete_object(self._normalize_key(object_key))
+
+    def download_file(self, object_key: str, target_path: Path) -> None:
+        clean_key = self._normalize_key(object_key)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        self._bucket.get_object_to_file(clean_key, str(target_path))
+
+    def public_url(self, object_key: str) -> str:
+        clean_key = self._normalize_key(object_key)
+        encoded_key = quote(clean_key, safe="/")
+        return f"https://{self._bucket_name}.{self._endpoint}/{encoded_key}"
+
+    def signed_url(self, object_key: str, expire_seconds: int | None = None) -> str:
+        return self._bucket.sign_url(
+            "GET",
+            self._normalize_key(object_key),
+            expire_seconds or self._config.signed_url_expire_seconds,
+            slash_safe=True,
+        )
+
+    def upload_file_url(self, local_path: Path, options: UploadOptions, progress_callback=None) -> str:
+        clean_key = self._normalize_key(options.object_key)
+        self.upload_file(local_path, clean_key, progress_callback)
+        if not options.use_signed_url:
+            return self.public_url(clean_key)
+        return self.signed_url(clean_key, options.expire_days * 24 * 60 * 60)
+
+    def count_objects(self, prefix: str) -> int:
+        count = 0
+        for _ in oss2.ObjectIterator(self._bucket, prefix=prefix, max_keys=MAX_LIST_KEYS):
+            count += 1
+        return count
+
+    def key_from_url(self, url: str) -> str:
+        raw_value = url.strip()
+        parsed = urlparse(raw_value)
+        if parsed.path and parsed.path != "/":
+            return self._normalize_key(unquote(parsed.path.lstrip("/")))
+
+        for separator in KEY_SEPARATORS:
+            if separator in raw_value:
+                return self._normalize_key(unquote(raw_value.split(separator, 1)[1]))
+
+        raise ValueError("无法从链接解析 OSS 文件路径")
+
+    def prefix_from_input(self, value: str) -> str:
+        raw_value = value.strip()
+        if not raw_value:
+            return ""
+        parsed = urlparse(raw_value)
+        if "aliyuncs.com" in raw_value and parsed.path in ("", "/"):
+            return ""
+        if "aliyuncs.com" in raw_value:
+            return self.key_from_url(raw_value)
+        return raw_value.replace("\\", "/").lstrip("/")
+
+    def _to_object(self, obj) -> OssObject:
+        return OssObject(
+            key=obj.key,
+            size=int(obj.size),
+            last_modified=str(obj.last_modified),
+            storage_class=str(getattr(obj, "storage_class", "")),
+            url=self.public_url(obj.key),
+        )
+
+    @staticmethod
+    def _mb_to_bytes(value: int) -> int:
+        return value * BYTES_PER_MB
+
+    @staticmethod
+    def _emit_progress(callback, consumed: int, total: int) -> None:
+        if callback:
+            callback(consumed, total)
+
+    @staticmethod
+    def _normalize_endpoint(endpoint: str) -> str:
+        parsed = urlparse(endpoint)
+        return parsed.netloc or endpoint.replace("https://", "").replace("http://", "")
+
+    @staticmethod
+    def _require_file(local_path: Path) -> None:
+        if not local_path.is_file():
+            raise FileNotFoundError(f"本地文件不存在: {local_path}")
+
+    @staticmethod
+    def _normalize_key(object_key: str) -> str:
+        clean_key = object_key.strip().replace("\\", "/").lstrip("/")
+        if not clean_key:
+            raise ValueError("OSS 文件路径不能为空")
+        return clean_key

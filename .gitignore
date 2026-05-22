@@ -1,0 +1,9 @@
+﻿.git/
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.spec
+config.local.json
+.env
+*.log
