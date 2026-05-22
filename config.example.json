@@ -1,7 +1,7 @@
-﻿{
+{
   "access_key_id": "",
   "access_key_secret": "",
-  "bucket": "rrbstorage",
+  "bucket": "",
   "endpoint": "http://oss-cn-hangzhou.aliyuncs.com",
   "view_endpoint": "https://%s.oss-cn-hangzhou.aliyuncs.com/%s",
   "signed_url_expire_seconds": 315360000,

@@ -1,5 +1,7 @@
 # 阿里云 OSS 文件管理工具
 
+项目地址：https://github.com/koi-pig/aly-oss-gui
+
 这是一个 PySide6 桌面工具，可以选择 Bucket、上传文件、显示上传进度、按原 OSS 链接覆盖文件、查看文件列表、复制链接、删除文件。
 
 ## 打包 exe
@@ -21,7 +23,7 @@ powershell -ExecutionPolicy Bypass -File ./build_exe.ps1
 {
   "access_key_id": "你的 AccessKey ID",
   "access_key_secret": "你的 AccessKey Secret",
-  "bucket": "rrbstorage",
+  "bucket": "你自己的 Bucket 名称",
   "endpoint": "http://oss-cn-hangzhou.aliyuncs.com",
   "view_endpoint": "https://%s.oss-cn-hangzhou.aliyuncs.com/%s",
   "signed_url_expire_seconds": 315360000,
@@ -32,12 +34,14 @@ powershell -ExecutionPolicy Bypass -File ./build_exe.ps1
 }
 ```
 
+`bucket` 必须改成你自己的 OSS Bucket 名称。
+
 `endpoint` 要写 Bucket 对应地域，例如：
 
 ```text
-rrbstorage     -> http://oss-cn-hangzhou.aliyuncs.com
-wmxtmedias     -> http://oss-cn-shanghai.aliyuncs.com
-zhihuixiantao  -> http://oss-cn-beijing.aliyuncs.com
+oss-cn-hangzhou -> http://oss-cn-hangzhou.aliyuncs.com
+oss-cn-shanghai -> http://oss-cn-shanghai.aliyuncs.com
+oss-cn-beijing  -> http://oss-cn-beijing.aliyuncs.com
 ```
 
 大文件上传会自动启用分片并发上传：
