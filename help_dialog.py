@@ -1,6 +1,5 @@
 ﻿from __future__ import annotations
 
-from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QDialog, QTextBrowser, QVBoxLayout, QWidget
 
@@ -13,8 +12,9 @@ def show_help_dialog(parent: QWidget) -> None:
     dialog.resize(680, 520)
     layout = QVBoxLayout(dialog)
     browser = QTextBrowser(dialog)
+    browser.setOpenLinks(False)
     browser.setOpenExternalLinks(False)
     browser.setHtml(HELP_HTML)
-    browser.anchorClicked.connect(lambda url: QDesktopServices.openUrl(QUrl(url)))
+    browser.anchorClicked.connect(QDesktopServices.openUrl)
     layout.addWidget(browser)
     dialog.exec()
