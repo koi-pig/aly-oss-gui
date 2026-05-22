@@ -7,7 +7,7 @@ APP_DIR = Path(__file__).resolve().parent
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
-from PySide6.QtCore import Qt, QThread, Slot
+from PySide6.QtCore import QThread, Slot
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication,
@@ -33,7 +33,7 @@ from app_defs import APP_VERSION, COLUMNS, DEFAULT_EXPIRE_DAYS, LOG_HEIGHT, WIND
 from config_dialog import ConfigDialog
 from gui_data_mixin import DataMixin
 from gui_task_mixin import TaskMixin
-from help_text import HELP_HTML
+from help_dialog import show_help_dialog
 from oss_config import load_config
 from oss_service import BucketOption, OssObject, OssService
 
@@ -258,14 +258,7 @@ class OssMainWindow(DataMixin, TaskMixin, QMainWindow):
 
     @Slot()
     def show_help(self) -> None:
-        box = QMessageBox(self)
-        box.setWindowTitle("使用帮助 / 作者")
-        box.setTextFormat(Qt.RichText)
-        box.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        box.setOpenExternalLinks(True)
-        box.setText(HELP_HTML)
-        box.exec()
-
+        show_help_dialog(self)
 
     @Slot()
     def copy_public_url(self) -> None:
