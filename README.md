@@ -2,12 +2,13 @@
 
 项目地址：https://github.com/koi-pig/aly-oss-gui
 
-这是一个 PySide6 桌面工具，可以选择 Bucket、上传文件、显示上传进度、按原 OSS 链接覆盖文件、查看文件列表、复制链接、删除文件。
+这是一个 PySide6 桌面工具，支持选择 Bucket、上传文件、显示上传进度、按原 OSS 链接覆盖文件、查看文件列表、复制链接和删除文件。
 
 ## 打包 exe
 
+在项目根目录执行：
+
 ```powershell
-cd d:/Desktop/rrb/doc/docs/aly_oss_gui
 powershell -ExecutionPolicy Bypass -File ./build_exe.ps1
 ```
 
@@ -24,8 +25,8 @@ powershell -ExecutionPolicy Bypass -File ./build_exe.ps1
   "access_key_id": "你的 AccessKey ID",
   "access_key_secret": "你的 AccessKey Secret",
   "bucket": "你自己的 Bucket 名称",
-  "endpoint": "http://oss-cn-hangzhou.aliyuncs.com",
-  "view_endpoint": "https://%s.oss-cn-hangzhou.aliyuncs.com/%s",
+  "endpoint": "http://oss-cn-<region>.aliyuncs.com",
+  "view_endpoint": "https://%s.oss-cn-<region>.aliyuncs.com/%s",
   "signed_url_expire_seconds": 315360000,
   "page_size": 10,
   "multipart_threshold_mb": 10,
@@ -36,12 +37,12 @@ powershell -ExecutionPolicy Bypass -File ./build_exe.ps1
 
 `bucket` 必须改成你自己的 OSS Bucket 名称。
 
-`endpoint` 要写 Bucket 对应地域，例如：
+`endpoint` 要写 Bucket 对应的阿里云 OSS 地域地址。示例：
 
 ```text
-oss-cn-hangzhou -> http://oss-cn-hangzhou.aliyuncs.com
-oss-cn-shanghai -> http://oss-cn-shanghai.aliyuncs.com
-oss-cn-beijing  -> http://oss-cn-beijing.aliyuncs.com
+杭州: http://oss-cn-hangzhou.aliyuncs.com
+上海: http://oss-cn-shanghai.aliyuncs.com
+北京: http://oss-cn-beijing.aliyuncs.com
 ```
 
 大文件上传会自动启用分片并发上传：
