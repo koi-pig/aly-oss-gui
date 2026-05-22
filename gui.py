@@ -70,7 +70,7 @@ class OssMainWindow(DataMixin, TaskMixin, QMainWindow):
         self._write_log(f"程序已启动，版本 {APP_VERSION}。当前 Bucket: {self._service.bucket_name}")
 
     def _build(self) -> None:
-        self.setWindowTitle(f"阿里云 OSS 文件管理工具 - by koi-pig - {APP_VERSION}")
+        self.setWindowTitle(f"阿里云 OSS 文件管理工具 - by koi-pig - QQ 2557745606 - {APP_VERSION}")
         self.setWindowIcon(QIcon(str(Path(__file__).resolve().parent / "assets" / "app.ico")))
         self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
         root = QWidget()
