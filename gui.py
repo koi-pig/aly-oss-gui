@@ -61,6 +61,7 @@ class OssMainWindow(DataMixin, ListMixin, TaskMixin, QMainWindow):
         self._bucket = QComboBox(); self._bucket.setEditable(True)
         self._link_mode = QComboBox()
         self._expire_days = QLineEdit(str(DEFAULT_EXPIRE_DAYS))
+        self._expire_days_label = QLabel("过期天数")
         self._page_size = QLineEdit(str(self._service.page_size))
         self._sort_mode = QComboBox()
         self._link_detail = QLineEdit()
@@ -101,10 +102,12 @@ class OssMainWindow(DataMixin, ListMixin, TaskMixin, QMainWindow):
         layout.addWidget(self._replace_url, 1, 1, 1, 3)
         layout.addWidget(self._button("按原链接替换", self.replace_by_url), 1, 4, 1, 2)
         self._link_mode.addItems(("永不过期公开链接", "签名链接"))
+        self._link_mode.currentTextChanged.connect(self._update_expire_days_state)
         layout.addWidget(QLabel("上传链接"), 2, 0)
         layout.addWidget(self._link_mode, 2, 1)
-        layout.addWidget(QLabel("过期天数"), 2, 2)
+        layout.addWidget(self._expire_days_label, 2, 2)
         layout.addWidget(self._expire_days, 2, 3)
+        self._update_expire_days_state()
         self._last_upload_url.setReadOnly(True)
         layout.addWidget(QLabel("最后上传链接"), 3, 0)
         layout.addWidget(self._last_upload_url, 3, 1, 1, 3)
@@ -175,6 +178,11 @@ class OssMainWindow(DataMixin, ListMixin, TaskMixin, QMainWindow):
         button = QPushButton(text)
         button.clicked.connect(lambda checked=False: self._handle_action(command))
         return button
+
+    def _update_expire_days_state(self) -> None:
+        enabled = self._link_mode.currentText() == "签名链接"
+        self._expire_days.setEnabled(enabled)
+        self._expire_days_label.setEnabled(enabled)
 
     @Slot()
     def choose_file(self) -> None:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import heapq
 from pathlib import Path
@@ -13,6 +15,7 @@ from oss_models import BucketOption, ObjectPage, OssObject, UploadOptions
 
 
 MAX_LIST_KEYS = 1000
+MAX_METADATA_WORKERS = 8
 CONNECT_TIMEOUT_SECONDS = 15
 BYTES_PER_MB = 1024 * 1024
 KEY_SEPARATORS = (".aliyuncs.com/", ".aliyuncs.com")
@@ -85,7 +88,7 @@ class OssService:
         result = self._bucket.list_objects(clean_prefix, marker=marker, max_keys=page_size)
         for obj in result.object_list:
             items.append(self._to_object(obj))
-        return ObjectPage(items, result.next_marker or "", -1)
+        return ObjectPage(self._with_metadata(items), result.next_marker or "", -1)
 
     def list_objects_recent_page(self, prefix: str, marker: str, page_size: int) -> ObjectPage:
         clean_prefix = self.prefix_from_input(prefix)
@@ -96,7 +99,7 @@ class OssService:
         start = (page_no - 1) * page_size
         page_items = [self._to_object(item[2]) for item in latest[start:keep_count]]
         next_marker = str(page_no + 1) if total_count > keep_count else ""
-        return ObjectPage(page_items, next_marker, total_count)
+        return ObjectPage(self._with_metadata(page_items), next_marker, total_count)
 
     def _latest_object_summaries(self, prefix: str, keep_count: int) -> tuple[list[tuple[int, int, object]], int]:
         heap: list[tuple[int, int, object]] = []
@@ -236,6 +239,31 @@ class OssService:
             expires_at="永不过期",
             storage_class=str(getattr(obj, "storage_class", "")),
             url=self.public_url(obj.key),
+        )
+
+    def _with_metadata(self, items: list[OssObject]) -> list[OssObject]:
+        if not items:
+            return items
+        workers = min(MAX_METADATA_WORKERS, len(items))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {executor.submit(self._object_metadata, item.key): index for index, item in enumerate(items)}
+            enriched = list(items)
+            for future in as_completed(futures):
+                index = futures[future]
+                enriched[index] = self._merge_metadata(enriched[index], future.result())
+        return enriched
+
+    def _object_metadata(self, object_key: str) -> dict[str, str]:
+        result = self._bucket.head_object(self._normalize_key(object_key))
+        return {str(key).lower(): str(value) for key, value in result.headers.items()}
+
+    def _merge_metadata(self, item: OssObject, headers: dict[str, str]) -> OssObject:
+        created_at = headers.get(META_CREATED_AT, item.created_at)
+        expires_at = headers.get(META_EXPIRES_AT, NEVER_EXPIRES)
+        return replace(
+            item,
+            created_at=format_datetime(created_at),
+            expires_at=format_datetime(expires_at),
         )
 
     def _upload_headers(self, options: UploadOptions) -> dict[str, str]:
