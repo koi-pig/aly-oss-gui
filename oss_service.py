@@ -226,14 +226,14 @@ class OssService:
         return value
 
     def _to_object(self, obj) -> OssObject:
-        headers = self._object_headers(obj.key)
+        last_modified = format_datetime(obj.last_modified)
         return OssObject(
             key=obj.key,
             size=int(obj.size),
-            created_at=self._display_created_at(headers, obj.last_modified),
-            last_modified=format_datetime(obj.last_modified),
+            created_at=last_modified,
+            last_modified=last_modified,
             last_modified_ts=int(obj.last_modified),
-            expires_at=self._display_expires_at(headers),
+            expires_at="永不过期",
             storage_class=str(getattr(obj, "storage_class", "")),
             url=self.public_url(obj.key),
         )
@@ -250,15 +250,6 @@ class OssService:
             META_EXPIRES_AT: expires_at,
             META_LINK_MODE: link_mode,
         }
-
-    def _object_headers(self, object_key: str) -> dict[str, str]:
-        return {key.lower(): value for key, value in self._bucket.head_object(object_key).headers.items()}
-
-    def _display_created_at(self, headers: dict[str, str], last_modified: int) -> str:
-        return format_datetime(headers.get(META_CREATED_AT) or last_modified)
-
-    def _display_expires_at(self, headers: dict[str, str]) -> str:
-        return format_datetime(headers.get(META_EXPIRES_AT) or NEVER_EXPIRES)
 
     @staticmethod
     def _mb_to_bytes(value: int) -> int:
