@@ -77,6 +77,10 @@ class OssService:
     def page_size(self) -> int:
         return self._config.page_size
 
+
+    @property
+    def multipart_threads(self) -> int:
+        return self._config.multipart_threads
     def list_buckets(self) -> list[BucketOption]:
         service = oss2.Service(self._auth, self._config.endpoint)
         bucket_infos = service.list_buckets().buckets

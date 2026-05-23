@@ -51,6 +51,7 @@ class OssMainWindow(DataMixin, TaskMixin, QMainWindow):
         self._upload_started_at = 0.0
         self._upload_total_size = 0
         self._last_progress_at, self._last_progress_bytes = 0.0, 0
+        self._selected_files: list[Path] = []
         self._selected_file = QLineEdit()
         self._object_key = QLineEdit()
         self._replace_url = QLineEdit()
@@ -171,16 +172,13 @@ class OssMainWindow(DataMixin, TaskMixin, QMainWindow):
 
     @Slot()
     def choose_file(self) -> None:
-        filename, _ = QFileDialog.getOpenFileName(self, "选择文件")
-        if not filename:
+        filenames, _ = QFileDialog.getOpenFileNames(self, "选择文件")
+        if not filenames:
             return
-        self._selected_file.setText(filename)
-        self._object_key.setText(self._object_key_for_file(Path(filename)))
-
-    def _object_key_for_file(self, local_path: Path) -> str:
-        current = self._object_key.text().strip().replace("\\", "/")
-        prefix = current if current.endswith("/") else current.rsplit("/", 1)[0] + "/" if "/" in current else ""
-        return f"{prefix}{local_path.name}"
+        self._selected_files = [Path(name) for name in filenames]
+        text = "; ".join(str(path) for path in self._selected_files)
+        self._selected_file.setText(text)
+        self._object_key.setText(self._object_key_for_file(self._selected_files[0]))
 
     @Slot()
     def refresh(self) -> None:

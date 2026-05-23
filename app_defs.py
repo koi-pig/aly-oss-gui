@@ -11,11 +11,11 @@ from pathlib import Path
 WINDOW_WIDTH = 1160
 WINDOW_HEIGHT = 760
 LOG_HEIGHT = 150
-APP_VERSION = "2026-05-23.2"
+APP_VERSION = "2026-05-23.3"
 DEFAULT_PAGE_SIZE = 10
 DEFAULT_EXPIRE_DAYS = 365
 EDIT_DIR_NAME = "aly_oss_gui_edit"
-UPLOAD_TITLES = {"上传文件", "替换文件", "覆盖文件"}
+UPLOAD_TITLES = {"上传文件", "替换文件", "覆盖文件", "批量上传"}
 COLUMNS = ("OSS 路径", "大小", "创建时间", "更新时间", "到期时间", "存储类型", "访问链接")
 SIZE_UNITS = ("B", "KB", "MB", "GB", "TB")
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"

@@ -53,3 +53,7 @@ powershell -ExecutionPolicy Bypass -File ./build_exe.ps1
 - `multipart_threads`：并发上传线程数，默认 32。网络不稳定时改回 16 或 8。
 
 - `upload_endpoint`：上传专用 Endpoint，可填 OSS 传输加速地址，例如 `https://oss-accelerate.aliyuncs.com`。留空时使用 `endpoint`。
+
+## 批量上传
+
+点击“选择文件”时可以多选文件。多选后点击“上传”，软件会按当前 OSS 路径的目录前缀并发上传多个文件，进度按所有文件总大小统计。

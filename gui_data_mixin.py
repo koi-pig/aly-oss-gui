@@ -7,6 +7,7 @@ from PySide6.QtCore import Slot
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QTableWidgetItem
 
 from app_defs import DEFAULT_EXPIRE_DAYS, UploadRequest, app_base_dir, format_duration, format_size, open_file
+from batch_upload import BatchUploadResult, BatchUploader
 from config_dialog import ConfigDialog
 from oss_config import load_config
 from oss_service import ObjectPage, OssObject, OssService, UploadOptions
@@ -15,7 +16,13 @@ from oss_service import ObjectPage, OssObject, OssService, UploadOptions
 class DataMixin:
     @Slot()
     def upload(self) -> None:
-        request = self._build_upload_request()
+        requests = self._build_upload_requests()
+        if len(requests) == 1:
+            self._upload_single_request(requests[0])
+            return
+        self._upload_batch_requests(requests)
+
+    def _upload_single_request(self, request: UploadRequest) -> None:
         self._start_upload_stats(request.local_path)
         self._write_log(f"准备上传: {request.local_path} -> {request.object_key}")
         self._write_log(f"文件大小: {format_size(self._upload_total_size)}")
@@ -25,6 +32,12 @@ class DataMixin:
             options,
             cb,
         ), self._show_upload_url, True)
+
+    def _upload_batch_requests(self, requests: list[UploadRequest]) -> None:
+        self._start_batch_upload_stats(requests)
+        self._write_log(f"准备批量上传: {len(requests)} 个文件，总大小 {format_size(self._upload_total_size)}")
+        uploader = BatchUploader(self._service, min(self._service.multipart_threads, 8))
+        self._run_task("批量上传", lambda cb: uploader.upload(requests, cb), self._show_batch_upload_result, True)
 
     @Slot()
     def replace_by_url(self) -> None:
@@ -93,6 +106,20 @@ class DataMixin:
         self._write_log(f"上传完成，链接已复制: {url}")
         self._write_upload_stats()
 
+    def _show_batch_upload_result(self, result: BatchUploadResult) -> None:
+        first_url = result.urls[0] if result.urls else ""
+        self._last_upload_url.setText(first_url)
+        if first_url:
+            QApplication.clipboard().setText(first_url)
+        self._write_log(f"批量上传完成，共 {len(result.urls)} 个文件，第一条链接已复制: {first_url}")
+        self._write_upload_stats()
+
+    def _start_batch_upload_stats(self, requests: list[UploadRequest]) -> None:
+        self._upload_started_at = time.perf_counter()
+        self._last_progress_at = self._upload_started_at
+        self._last_progress_bytes = 0
+        self._upload_total_size = sum(item.local_path.stat().st_size for item in requests)
+
     def _start_upload_stats(self, local_path: Path) -> None:
         self._upload_started_at = time.perf_counter()
         self._last_progress_at = self._upload_started_at
@@ -124,6 +151,29 @@ class DataMixin:
         if value <= 0:
             raise ValueError("每页数量必须大于 0")
         return value
+
+    def _object_key_for_file(self, local_path: Path) -> str:
+        current = self._object_key.text().strip().replace("\\", "/")
+        if current.endswith("/"):
+            return f"{current}{local_path.name}"
+        prefix = current.rsplit("/", 1)[0] + "/" if "/" in current else ""
+        return f"{prefix}{local_path.name}"
+
+    def _build_upload_requests(self) -> list[UploadRequest]:
+        files = self._selected_files or [Path(self._selected_file.text())]
+        if len(files) == 1:
+            return [self._build_upload_request()]
+        prefix = self._upload_prefix()
+        return [
+            UploadRequest(path, f"{prefix}{path.name}", self._use_signed_url(), self._expire_days_value())
+            for path in files
+        ]
+
+    def _upload_prefix(self) -> str:
+        current = self._object_key.text().strip().replace("\\", "/")
+        if not current:
+            return ""
+        return current if current.endswith("/") else current.rsplit("/", 1)[0] + "/" if "/" in current else ""
 
     def _build_upload_request(self) -> UploadRequest:
         return UploadRequest(

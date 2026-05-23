@@ -24,6 +24,7 @@ li { margin: 8px 0; }
 <li><b>Endpoint：</b>Endpoint 要和 Bucket 所在地域一致，例如 http://oss-cn-hangzhou.aliyuncs.com。</li>
 <li><b>大文件上传：</b>软件会自动使用 OSS 分片并发上传。默认分片阈值 10MB，每片 16MB，线程数 32；网络不稳定可把线程数改小。</li>
 <li><b>上传结果：</b>上传完成后会自动复制链接，并在“最后上传链接”中显示。</li>
+<li><b>批量上传：</b>选择文件时可多选，软件会按当前 OSS 路径的目录前缀并发上传多个文件。</li>
 <li><b>时间显示：</b>新上传文件会记录创建时间和到期时间。老文件没有记录时，创建时间按 OSS 更新时间显示，到期时间显示为永不过期。</li>
 <li><b>上传加速：</b>配置里的上传 Endpoint 可填写 OSS 传输加速地址，例如 https://oss-accelerate.aliyuncs.com；留空则使用普通 Endpoint。</li>
 </ol>
