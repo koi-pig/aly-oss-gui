@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import heapq
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
 
@@ -9,6 +9,7 @@ import oss2
 
 from app_defs import format_datetime
 from oss_config import OssConfig
+from oss_models import BucketOption, ObjectPage, OssObject, UploadOptions
 
 
 MAX_LIST_KEYS = 1000
@@ -21,42 +22,6 @@ META_LINK_MODE = "x-oss-meta-link-mode"
 PUBLIC_LINK_MODE = "public"
 SIGNED_LINK_MODE = "signed"
 NEVER_EXPIRES = "never"
-
-
-@dataclass(frozen=True)
-class OssObject:
-    key: str
-    size: int
-    created_at: str
-    last_modified: str
-    last_modified_ts: int
-    expires_at: str
-    storage_class: str
-    url: str
-
-
-@dataclass(frozen=True)
-class BucketOption:
-    name: str
-    endpoint: str
-
-    @property
-    def label(self) -> str:
-        return f"{self.name} -> {self.endpoint}"
-
-
-@dataclass(frozen=True)
-class ObjectPage:
-    objects: list[OssObject]
-    next_marker: str
-    total_count: int
-
-
-@dataclass(frozen=True)
-class UploadOptions:
-    object_key: str
-    use_signed_url: bool
-    expire_days: int
 
 
 class OssService:
@@ -116,12 +81,27 @@ class OssService:
 
     def list_objects_page(self, prefix: str, marker: str, page_size: int) -> ObjectPage:
         clean_prefix = self.prefix_from_input(prefix)
-        items: list[OssObject] = []
-        result = self._bucket.list_objects(clean_prefix, marker=marker, max_keys=page_size)
-        for obj in result.object_list:
-            items.append(self._to_object(obj))
-        items.sort(key=lambda item: item.last_modified_ts, reverse=True)
-        return ObjectPage(items, result.next_marker or "", -1)
+        page_no = self._page_no_from_marker(marker)
+        keep_count = page_size * page_no
+        latest, total_count = self._latest_object_summaries(clean_prefix, keep_count)
+        latest.sort(key=lambda item: item[0], reverse=True)
+        start = (page_no - 1) * page_size
+        page_items = [self._to_object(item[2]) for item in latest[start:keep_count]]
+        next_marker = str(page_no + 1) if total_count > keep_count else ""
+        return ObjectPage(page_items, next_marker, total_count)
+
+    def _latest_object_summaries(self, prefix: str, keep_count: int) -> tuple[list[tuple[int, int, object]], int]:
+        heap: list[tuple[int, int, object]] = []
+        total_count = 0
+        for index, obj in enumerate(oss2.ObjectIterator(self._bucket, prefix=prefix, max_keys=MAX_LIST_KEYS)):
+            total_count += 1
+            item = (int(obj.last_modified), index, obj)
+            if len(heap) < keep_count:
+                heapq.heappush(heap, item)
+                continue
+            if item[0] > heap[0][0]:
+                heapq.heapreplace(heap, item)
+        return heap, total_count
 
     def upload_file(
         self,
@@ -227,6 +207,15 @@ class OssService:
         if "aliyuncs.com" in raw_value:
             return self.key_from_url(raw_value)
         return raw_value.replace("\\", "/").lstrip("/")
+
+    @staticmethod
+    def _page_no_from_marker(marker: str) -> int:
+        if not marker:
+            return 1
+        value = int(marker)
+        if value <= 0:
+            raise ValueError("页码标记必须大于 0")
+        return value
 
     def _to_object(self, obj) -> OssObject:
         headers = self._object_headers(obj.key)

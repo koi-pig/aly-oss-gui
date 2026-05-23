@@ -35,7 +35,8 @@ from gui_data_mixin import DataMixin
 from gui_task_mixin import TaskMixin
 from help_dialog import show_help_dialog
 from oss_config import load_config
-from oss_service import BucketOption, OssObject, OssService
+from oss_models import BucketOption, OssObject
+from oss_service import OssService
 
 class OssMainWindow(DataMixin, TaskMixin, QMainWindow):
     def __init__(self, service: OssService) -> None:

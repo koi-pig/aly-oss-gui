@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from threading import Lock
 
 from app_defs import UploadRequest
-from oss_service import OssService, UploadOptions
+from oss_models import UploadOptions
+from oss_service import OssService
 
 
 @dataclass(frozen=True)

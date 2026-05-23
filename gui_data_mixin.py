@@ -10,7 +10,8 @@ from app_defs import DEFAULT_EXPIRE_DAYS, UploadRequest, app_base_dir, format_du
 from batch_upload import BatchUploadResult, BatchUploader
 from config_dialog import ConfigDialog
 from oss_config import load_config
-from oss_service import ObjectPage, OssObject, OssService, UploadOptions
+from oss_models import ObjectPage, OssObject, UploadOptions
+from oss_service import OssService
 
 
 class DataMixin:
