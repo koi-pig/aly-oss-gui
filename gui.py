@@ -37,7 +37,6 @@ from help_dialog import show_help_dialog
 from oss_config import load_config
 from oss_service import BucketOption, OssObject, OssService
 
-
 class OssMainWindow(DataMixin, TaskMixin, QMainWindow):
     def __init__(self, service: OssService) -> None:
         super().__init__()
@@ -51,6 +50,7 @@ class OssMainWindow(DataMixin, TaskMixin, QMainWindow):
         self._last_progress_logged = -10
         self._upload_started_at = 0.0
         self._upload_total_size = 0
+        self._last_progress_at, self._last_progress_bytes = 0.0, 0
         self._selected_file = QLineEdit()
         self._object_key = QLineEdit()
         self._replace_url = QLineEdit()

@@ -26,12 +26,13 @@ powershell -ExecutionPolicy Bypass -File ./build_exe.ps1
   "access_key_secret": "你的 AccessKey Secret",
   "bucket": "你自己的 Bucket 名称",
   "endpoint": "http://oss-cn-<region>.aliyuncs.com",
+  "upload_endpoint": "",
   "view_endpoint": "https://%s.oss-cn-<region>.aliyuncs.com/%s",
   "signed_url_expire_seconds": 315360000,
   "page_size": 10,
   "multipart_threshold_mb": 10,
-  "multipart_part_size_mb": 8,
-  "multipart_threads": 16
+  "multipart_part_size_mb": 16,
+  "multipart_threads": 32
 }
 ```
 
@@ -48,5 +49,7 @@ powershell -ExecutionPolicy Bypass -File ./build_exe.ps1
 大文件上传会自动启用分片并发上传：
 
 - `multipart_threshold_mb`：文件大于等于多少 MB 启用分片上传，默认 10。
-- `multipart_part_size_mb`：每个分片大小，默认 8。
-- `multipart_threads`：并发上传线程数，默认 16，不稳定时改回 8。
+- `multipart_part_size_mb`：每个分片大小，默认 16。大文件可试 16 或 32。
+- `multipart_threads`：并发上传线程数，默认 32。网络不稳定时改回 16 或 8。
+
+- `upload_endpoint`：上传专用 Endpoint，可填 OSS 传输加速地址，例如 `https://oss-accelerate.aliyuncs.com`。留空时使用 `endpoint`。

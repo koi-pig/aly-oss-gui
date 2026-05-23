@@ -19,6 +19,7 @@ FIELD_LABELS = (
     ("access_key_secret", "AccessKey Secret"),
     ("bucket", "默认 Bucket"),
     ("endpoint", "Endpoint"),
+    ("upload_endpoint", "上传 Endpoint"),
     ("view_endpoint", "链接模板"),
     ("signed_url_expire_seconds", "签名默认秒数"),
     ("page_size", "默认每页数量"),

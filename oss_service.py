@@ -64,8 +64,10 @@ class OssService:
         self._config = config
         self._bucket_name = config.bucket
         self._endpoint = self._normalize_endpoint(config.endpoint)
+        self._upload_endpoint = self._normalize_endpoint(config.upload_endpoint or config.endpoint)
         self._bucket_endpoints: dict[str, str] = {config.bucket: self._endpoint}
         self._bucket = self._build_bucket(config.bucket, self._endpoint)
+        self._upload_bucket = self._build_bucket(config.bucket, self._upload_endpoint)
 
     @property
     def bucket_name(self) -> str:
@@ -91,16 +93,17 @@ class OssService:
         endpoint = self._bucket_endpoints.get(clean_name, self._endpoint)
         self._bucket_name = clean_name
         self._endpoint = endpoint
+        self._upload_endpoint = self._normalize_endpoint(self._config.upload_endpoint or endpoint)
         self._bucket = self._build_bucket(clean_name, endpoint)
+        self._upload_bucket = self._build_bucket(clean_name, self._upload_endpoint)
 
     def _build_bucket(self, bucket_name: str, endpoint: str):
-        self._bucket = oss2.Bucket(
+        return oss2.Bucket(
             self._auth,
             endpoint,
             bucket_name,
             connect_timeout=CONNECT_TIMEOUT_SECONDS,
         )
-        return self._bucket
 
     def list_objects(self, prefix: str) -> list[OssObject]:
         page = self.list_objects_page(prefix, "", MAX_LIST_KEYS)
@@ -134,7 +137,7 @@ class OssService:
         return self.public_url(clean_key)
 
     def _upload_single(self, local_path: Path, object_key: str, headers: dict[str, str], progress_callback) -> None:
-        self._bucket.put_object_from_file(
+        self._upload_bucket.put_object_from_file(
             object_key,
             str(local_path),
             headers=headers,
@@ -149,7 +152,7 @@ class OssService:
         progress_callback,
     ) -> None:
         oss2.resumable_upload(
-            self._bucket,
+            self._upload_bucket,
             object_key,
             str(local_path),
             headers=headers,

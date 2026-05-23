@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import tempfile
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QThread
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from app_defs import EDIT_DIR_NAME, UPLOAD_TITLES, format_size, open_file
+from app_defs import EDIT_DIR_NAME, UPLOAD_TITLES, format_duration, format_size, open_file
 from task_worker import TaskWorker
 
 
@@ -75,12 +76,34 @@ class TaskMixin:
         self._write_progress_log(percent, consumed_bytes, total_bytes)
 
     def _write_progress_log(self, percent: int, consumed: int, total: int) -> None:
-        if percent < self._last_progress_logged + 10 and percent != 100:
+        now = time.perf_counter()
+        should_log = percent >= self._last_progress_logged + 5 or percent == 100
+        if not should_log:
             return
+        instant_speed = self._instant_speed(now, consumed)
+        average_speed = self._average_speed(now, consumed)
+        eta = self._eta_seconds(consumed, total, average_speed)
         self._last_progress_logged = percent
         shown = f"{format_size(consumed)}/{format_size(total)}"
-        self._write_log(f"上传进度 {percent}% ({shown}, {consumed}/{total} bytes)")
+        self._write_log(
+            f"上传进度 {percent}% ({shown})，"
+            f"当前 {format_size(instant_speed)}/s，平均 {format_size(average_speed)}/s，剩余 {format_duration(eta)}"
+        )
+        self._last_progress_at = now
+        self._last_progress_bytes = consumed
 
+    def _instant_speed(self, now: float, consumed: int) -> int:
+        elapsed = max(now - self._last_progress_at, 0.001)
+        return max(int((consumed - self._last_progress_bytes) / elapsed), 0)
+
+    def _average_speed(self, now: float, consumed: int) -> int:
+        elapsed = max(now - self._upload_started_at, 0.001)
+        return max(int(consumed / elapsed), 0)
+
+    def _eta_seconds(self, consumed: int, total: int, speed: int) -> float:
+        if speed <= 0 or total <= consumed:
+            return 0.0
+        return (total - consumed) / speed
 
     def _on_success(self, title: str, result, on_success) -> None:
         self._status.setText("完成")

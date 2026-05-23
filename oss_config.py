@@ -11,12 +11,13 @@ DEFAULT_CONFIG = {
     "access_key_secret": "",
     "bucket": "",
     "endpoint": "http://oss-cn-hangzhou.aliyuncs.com",
+    "upload_endpoint": "",
     "view_endpoint": "https://%s.oss-cn-hangzhou.aliyuncs.com/%s",
     "signed_url_expire_seconds": 315360000,
     "page_size": 10,
     "multipart_threshold_mb": 10,
-    "multipart_part_size_mb": 8,
-    "multipart_threads": 16,
+    "multipart_part_size_mb": 16,
+    "multipart_threads": 32,
 }
 
 
@@ -26,6 +27,7 @@ class OssConfig:
     access_key_secret: str
     bucket: str
     endpoint: str
+    upload_endpoint: str
     view_endpoint: str
     signed_url_expire_seconds: int
     page_size: int
@@ -57,12 +59,13 @@ def load_config(base_dir: Path) -> OssConfig:
         access_key_secret=str(data["access_key_secret"]),
         bucket=str(data["bucket"]),
         endpoint=str(data["endpoint"]),
+        upload_endpoint=str(data.get("upload_endpoint", "")),
         view_endpoint=str(data["view_endpoint"]),
         signed_url_expire_seconds=int(data["signed_url_expire_seconds"]),
         page_size=int(data.get("page_size", 10)),
         multipart_threshold_mb=int(data.get("multipart_threshold_mb", 10)),
-        multipart_part_size_mb=int(data.get("multipart_part_size_mb", 8)),
-        multipart_threads=int(data.get("multipart_threads", 16)),
+        multipart_part_size_mb=int(data.get("multipart_part_size_mb", 16)),
+        multipart_threads=int(data.get("multipart_threads", 32)),
     )
 
 

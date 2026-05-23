@@ -95,6 +95,8 @@ class DataMixin:
 
     def _start_upload_stats(self, local_path: Path) -> None:
         self._upload_started_at = time.perf_counter()
+        self._last_progress_at = self._upload_started_at
+        self._last_progress_bytes = 0
         self._upload_total_size = local_path.stat().st_size
 
     def _write_upload_stats(self) -> None:
