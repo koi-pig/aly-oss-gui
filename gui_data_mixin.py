@@ -170,7 +170,15 @@ class DataMixin:
     def _append_object_row(self, item: OssObject) -> None:
         row = self._table.rowCount()
         self._table.insertRow(row)
-        values = (item.key, format_size(item.size), item.last_modified, item.storage_class, item.url)
+        values = (
+            item.key,
+            format_size(item.size),
+            item.created_at,
+            item.last_modified,
+            item.expires_at,
+            item.storage_class,
+            item.url,
+        )
         for column, value in enumerate(values):
             self._table.setItem(row, column, QTableWidgetItem(value))
 
@@ -179,7 +187,7 @@ class DataMixin:
         if row < 0:
             self._link_detail.clear()
             return
-        self._link_detail.setText(self._table.item(row, 4).text())
+        self._link_detail.setText(self._table.item(row, 6).text())
 
     def _selected_key(self) -> str:
         row = self._table.currentRow()

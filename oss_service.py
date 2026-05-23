@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
 
 import oss2
 
+from app_defs import format_datetime
 from oss_config import OssConfig
 
 
@@ -13,13 +15,21 @@ MAX_LIST_KEYS = 1000
 CONNECT_TIMEOUT_SECONDS = 15
 BYTES_PER_MB = 1024 * 1024
 KEY_SEPARATORS = (".aliyuncs.com/", ".aliyuncs.com")
+META_CREATED_AT = "x-oss-meta-created-at"
+META_EXPIRES_AT = "x-oss-meta-expires-at"
+META_LINK_MODE = "x-oss-meta-link-mode"
+PUBLIC_LINK_MODE = "public"
+SIGNED_LINK_MODE = "signed"
+NEVER_EXPIRES = "never"
 
 
 @dataclass(frozen=True)
 class OssObject:
     key: str
     size: int
+    created_at: str
     last_modified: str
+    expires_at: str
     storage_class: str
     url: str
 
@@ -104,30 +114,45 @@ class OssService:
             items.append(self._to_object(obj))
         return ObjectPage(items, result.next_marker or "", -1)
 
-    def upload_file(self, local_path: Path, object_key: str, progress_callback=None) -> str:
+    def upload_file(
+        self,
+        local_path: Path,
+        object_key: str,
+        options: UploadOptions,
+        progress_callback=None,
+    ) -> str:
         self._require_file(local_path)
         clean_key = self._normalize_key(object_key)
         total_size = local_path.stat().st_size
+        headers = self._upload_headers(options)
         self._emit_progress(progress_callback, 0, total_size)
         if self._should_multipart(total_size):
-            self._upload_resumable(local_path, clean_key, progress_callback)
+            self._upload_resumable(local_path, clean_key, headers, progress_callback)
         else:
-            self._upload_single(local_path, clean_key, progress_callback)
+            self._upload_single(local_path, clean_key, headers, progress_callback)
         self._emit_progress(progress_callback, total_size, total_size)
         return self.public_url(clean_key)
 
-    def _upload_single(self, local_path: Path, object_key: str, progress_callback) -> None:
+    def _upload_single(self, local_path: Path, object_key: str, headers: dict[str, str], progress_callback) -> None:
         self._bucket.put_object_from_file(
             object_key,
             str(local_path),
+            headers=headers,
             progress_callback=progress_callback,
         )
 
-    def _upload_resumable(self, local_path: Path, object_key: str, progress_callback) -> None:
+    def _upload_resumable(
+        self,
+        local_path: Path,
+        object_key: str,
+        headers: dict[str, str],
+        progress_callback,
+    ) -> None:
         oss2.resumable_upload(
             self._bucket,
             object_key,
             str(local_path),
+            headers=headers,
             multipart_threshold=self._mb_to_bytes(self._config.multipart_threshold_mb),
             part_size=self._mb_to_bytes(self._config.multipart_part_size_mb),
             num_threads=self._config.multipart_threads,
@@ -160,7 +185,7 @@ class OssService:
 
     def upload_file_url(self, local_path: Path, options: UploadOptions, progress_callback=None) -> str:
         clean_key = self._normalize_key(options.object_key)
-        self.upload_file(local_path, clean_key, progress_callback)
+        self.upload_file(local_path, clean_key, options, progress_callback)
         if not options.use_signed_url:
             return self.public_url(clean_key)
         return self.signed_url(clean_key, options.expire_days * 24 * 60 * 60)
@@ -195,13 +220,38 @@ class OssService:
         return raw_value.replace("\\", "/").lstrip("/")
 
     def _to_object(self, obj) -> OssObject:
+        headers = self._object_headers(obj.key)
         return OssObject(
             key=obj.key,
             size=int(obj.size),
-            last_modified=str(obj.last_modified),
+            created_at=self._display_created_at(headers, obj.last_modified),
+            last_modified=format_datetime(obj.last_modified),
+            expires_at=self._display_expires_at(headers),
             storage_class=str(getattr(obj, "storage_class", "")),
             url=self.public_url(obj.key),
         )
+
+    def _upload_headers(self, options: UploadOptions) -> dict[str, str]:
+        now = datetime.now(timezone.utc)
+        expires_at = NEVER_EXPIRES
+        link_mode = PUBLIC_LINK_MODE
+        if options.use_signed_url:
+            expires_at = (now + timedelta(days=options.expire_days)).isoformat()
+            link_mode = SIGNED_LINK_MODE
+        return {
+            META_CREATED_AT: now.isoformat(),
+            META_EXPIRES_AT: expires_at,
+            META_LINK_MODE: link_mode,
+        }
+
+    def _object_headers(self, object_key: str) -> dict[str, str]:
+        return {key.lower(): value for key, value in self._bucket.head_object(object_key).headers.items()}
+
+    def _display_created_at(self, headers: dict[str, str], last_modified: int) -> str:
+        return format_datetime(headers.get(META_CREATED_AT) or last_modified)
+
+    def _display_expires_at(self, headers: dict[str, str]) -> str:
+        return format_datetime(headers.get(META_EXPIRES_AT) or NEVER_EXPIRES)
 
     @staticmethod
     def _mb_to_bytes(value: int) -> int:

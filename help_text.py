@@ -24,6 +24,7 @@ li { margin: 8px 0; }
 <li><b>Endpoint：</b>Endpoint 要和 Bucket 所在地域一致，例如 http://oss-cn-hangzhou.aliyuncs.com。</li>
 <li><b>大文件上传：</b>软件会自动使用 OSS 分片并发上传。默认分片阈值 10MB，每片 8MB，线程数 16。</li>
 <li><b>上传结果：</b>上传完成后会自动复制链接，并在“最后上传链接”中显示。</li>
+<li><b>时间显示：</b>新上传文件会记录创建时间和到期时间。老文件没有记录时，创建时间按 OSS 更新时间显示，到期时间显示为永不过期。</li>
 </ol>
 <p class="muted">配置文件保存在程序同目录的 config.local.json，打包 exe 后也放在 exe 同目录。</p>
 """
