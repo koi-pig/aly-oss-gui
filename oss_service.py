@@ -29,6 +29,7 @@ class OssObject:
     size: int
     created_at: str
     last_modified: str
+    last_modified_ts: int
     expires_at: str
     storage_class: str
     url: str
@@ -77,10 +78,10 @@ class OssService:
     def page_size(self) -> int:
         return self._config.page_size
 
-
     @property
     def multipart_threads(self) -> int:
         return self._config.multipart_threads
+
     def list_buckets(self) -> list[BucketOption]:
         service = oss2.Service(self._auth, self._config.endpoint)
         bucket_infos = service.list_buckets().buckets
@@ -119,6 +120,7 @@ class OssService:
         result = self._bucket.list_objects(clean_prefix, marker=marker, max_keys=page_size)
         for obj in result.object_list:
             items.append(self._to_object(obj))
+        items.sort(key=lambda item: item.last_modified_ts, reverse=True)
         return ObjectPage(items, result.next_marker or "", -1)
 
     def upload_file(
@@ -233,6 +235,7 @@ class OssService:
             size=int(obj.size),
             created_at=self._display_created_at(headers, obj.last_modified),
             last_modified=format_datetime(obj.last_modified),
+            last_modified_ts=int(obj.last_modified),
             expires_at=self._display_expires_at(headers),
             storage_class=str(getattr(obj, "storage_class", "")),
             url=self.public_url(obj.key),
