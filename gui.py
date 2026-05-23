@@ -32,13 +32,14 @@ from PySide6.QtWidgets import (
 from app_defs import APP_VERSION, COLUMNS, DEFAULT_EXPIRE_DAYS, LOG_HEIGHT, WINDOW_HEIGHT, WINDOW_WIDTH, app_base_dir
 from config_dialog import ConfigDialog
 from gui_data_mixin import DataMixin
+from gui_list_mixin import ListMixin
 from gui_task_mixin import TaskMixin
 from help_dialog import show_help_dialog
 from oss_config import load_config
 from oss_models import BucketOption, OssObject
 from oss_service import OssService
 
-class OssMainWindow(DataMixin, TaskMixin, QMainWindow):
+class OssMainWindow(DataMixin, ListMixin, TaskMixin, QMainWindow):
     def __init__(self, service: OssService) -> None:
         super().__init__()
         self._service = service
@@ -61,6 +62,7 @@ class OssMainWindow(DataMixin, TaskMixin, QMainWindow):
         self._link_mode = QComboBox()
         self._expire_days = QLineEdit(str(DEFAULT_EXPIRE_DAYS))
         self._page_size = QLineEdit(str(self._service.page_size))
+        self._sort_mode = QComboBox()
         self._link_detail = QLineEdit()
         self._last_upload_url = QLineEdit()
         self._page_info = QLabel("总数 0，本页 0")
@@ -129,6 +131,9 @@ class OssMainWindow(DataMixin, TaskMixin, QMainWindow):
         search.addWidget(self._prefix)
         search.addWidget(QLabel("每页"))
         search.addWidget(self._page_size)
+        self._sort_mode.addItems(("快速分页", "最新优先"))
+        search.addWidget(QLabel("排序"))
+        search.addWidget(self._sort_mode)
         search.addWidget(self._button("刷新列表", self.refresh))
         layout.addLayout(search)
         self._table.setHorizontalHeaderLabels(COLUMNS)
@@ -180,37 +185,6 @@ class OssMainWindow(DataMixin, TaskMixin, QMainWindow):
         text = "; ".join(str(path) for path in self._selected_files)
         self._selected_file.setText(text)
         self._object_key.setText(self._object_key_for_file(self._selected_files[0]))
-
-    @Slot()
-    def refresh(self) -> None:
-        prefix = self._prefix.text().strip()
-        self._page_markers = [""]
-        self._current_prefix = prefix
-        self._load_page()
-
-    @Slot()
-    def previous_page(self) -> None:
-        if len(self._page_markers) <= 1:
-            self._write_log("已经是第一页。")
-            return
-        self._page_markers.pop()
-        self._load_page()
-
-    @Slot()
-    def next_page(self) -> None:
-        if not self._next_marker:
-            self._write_log("没有下一页。")
-            return
-        self._page_markers.append(self._next_marker)
-        self._load_page()
-
-    def _load_page(self) -> None:
-        prefix = self._current_prefix
-        clean = self._service.prefix_from_input(prefix)
-        page_no = len(self._page_markers)
-        marker = self._page_markers[-1]
-        self._write_log(f"准备刷新列表，前缀: {clean or '(全部)'}，第 {page_no} 页")
-        self._run_task("刷新列表", lambda _: self._service.list_objects_page(prefix, marker, self._page_size_value()), self._show_page)
 
     @Slot()
     def refresh_buckets(self) -> None:

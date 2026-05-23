@@ -81,6 +81,14 @@ class OssService:
 
     def list_objects_page(self, prefix: str, marker: str, page_size: int) -> ObjectPage:
         clean_prefix = self.prefix_from_input(prefix)
+        items: list[OssObject] = []
+        result = self._bucket.list_objects(clean_prefix, marker=marker, max_keys=page_size)
+        for obj in result.object_list:
+            items.append(self._to_object(obj))
+        return ObjectPage(items, result.next_marker or "", -1)
+
+    def list_objects_recent_page(self, prefix: str, marker: str, page_size: int) -> ObjectPage:
+        clean_prefix = self.prefix_from_input(prefix)
         page_no = self._page_no_from_marker(marker)
         keep_count = page_size * page_no
         latest, total_count = self._latest_object_summaries(clean_prefix, keep_count)
